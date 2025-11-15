@@ -240,33 +240,121 @@ const r2 = 1 / Math.sqrt(2);
 // 爆発エフェクト
 function explosion(parent, x, y){
     let size = BLOCK_SIZE / 2;
-    const create = (dx, dy) => {
-        var star = document.getElementById('star').cloneNode(true);
+
+    // 中心の光フラッシュ
+    const flash = document.createElement('div');
+    Object.assign(flash.style, {
+        position: 'absolute',
+        left: `${x - BLOCK_SIZE}px`,
+        top: `${y - BLOCK_SIZE}px`,
+        width: `${BLOCK_SIZE * 2}px`,
+        height: `${BLOCK_SIZE * 2}px`,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,220,100,0.6) 30%, rgba(255,100,50,0) 70%)',
+        opacity: '1',
+        pointerEvents: 'none',
+    });
+    parent.append(flash);
+    const flashEffect = new Effect();
+    flashEffect.properties = {
+        opacity: 0,
+        width: BLOCK_SIZE * 3,
+        height: BLOCK_SIZE * 3,
+    };
+    flashEffect.target = flash.style;
+    flashEffect.ease = easeOutCubic;
+    flashEffect.frame = 20;
+    flashEffect.finalyzer = () => flash.remove();
+    effects.push(flashEffect);
+    flashEffect.start();
+
+    // パーティクルを8方向 + ランダムに生成
+    const createParticle = (dx, dy, speedMult = 1) => {
+        const particleSize = (0.3 + Math.random() * 0.4) * size;
+        const angle = Math.random() * 360;
+
+        const star = document.getElementById('star').cloneNode(true);
         Object.assign(star.style, {
-            position : 'absolute',
-            left:`${x - 0.5 + dx * BLOCK_SIZE / 4}px`,
-            top:`${y - 0.5 + dy * BLOCK_SIZE / 4}px`,
-            visibility:'visible',
-            transform:`scale(${size})`,
-            strokeWidth: 1 / size,
+            position: 'absolute',
+            left: `${x - 0.5 + dx * BLOCK_SIZE / 4}px`,
+            top: `${y - 0.5 + dy * BLOCK_SIZE / 4}px`,
+            visibility: 'visible',
+            transform: `scale(${particleSize}) rotate(${angle}deg)`,
+            strokeWidth: 1 / particleSize,
+            opacity: '1',
         });
         parent.append(star);
+
+        const distance = 1.2 + Math.random() * 0.8;
+        const duration = 12 + Math.random() * 8;
         const effect = new Effect();
         effect.properties = {
-            left:x - 0.5 + dx * BLOCK_SIZE * 1.5,
-            top:y - 0.5 + dy * BLOCK_SIZE * 1.5,
+            left: x - 0.5 + dx * BLOCK_SIZE * distance * speedMult,
+            top: y - 0.5 + dy * BLOCK_SIZE * distance * speedMult,
+            opacity: 0,
         };
         effect.target = star.style;
         effect.ease = easeOutCubic;
-        effect.frame = 15;
+        effect.frame = duration;
+        effect.keys = {
+            [Math.floor(duration * 0.5)]: [{transform: `scale(${particleSize}) rotate(${angle + 180}deg)`}],
+        };
         effect.finalyzer = () => star.remove();
         effects.push(effect);
         effect.start();
     };
-    create(r2, r2);
-    create(-r2, r2);
-    create(r2, -r2);
-    create(-r2, -r2);
+
+    // 8方向のパーティクル
+    createParticle(1, 0);
+    createParticle(-1, 0);
+    createParticle(0, 1);
+    createParticle(0, -1);
+    createParticle(r2, r2);
+    createParticle(-r2, r2);
+    createParticle(r2, -r2);
+    createParticle(-r2, -r2);
+
+    // ランダムな方向の追加パーティクル
+    for(let i = 0; i < 6; i++){
+        const angle = Math.random() * Math.PI * 2;
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+        createParticle(dx, dy, 0.6 + Math.random() * 0.6);
+    }
+
+    // 小さな破片パーティクル
+    for(let i = 0; i < 8; i++){
+        const angle = Math.random() * Math.PI * 2;
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+        const particle = document.createElement('div');
+        Object.assign(particle.style, {
+            position: 'absolute',
+            left: `${x}px`,
+            top: `${y}px`,
+            width: '3px',
+            height: '3px',
+            borderRadius: '50%',
+            backgroundColor: `hsl(${Math.random() * 60 + 20}, 100%, ${50 + Math.random() * 30}%)`,
+            opacity: '1',
+        });
+        parent.append(particle);
+
+        const distance = 0.5 + Math.random() * 1;
+        const duration = 8 + Math.random() * 10;
+        const effect = new Effect();
+        effect.properties = {
+            left: x + dx * BLOCK_SIZE * distance,
+            top: y + dy * BLOCK_SIZE * distance,
+            opacity: 0,
+        };
+        effect.target = particle.style;
+        effect.ease = easeOutCubic;
+        effect.frame = duration;
+        effect.finalyzer = () => particle.remove();
+        effects.push(effect);
+        effect.start();
+    }
 }
 // コンボエフェクト
 function comboBonus(parent, x, y, combo){
@@ -1253,22 +1341,115 @@ const updateFunc = () => {
     const FRAME_WIDTH = BLOCK_SIZE / 16;
     const drawBlock = (b, w, h) => {
         const scale = b.scale();
-        g.fillStyle = COLORS[b.type];
-        g.fillRect(0, 0, w, h);
-        g.fillStyle = DARK_COLORS[b.type];
-        g.fillRect(0, h - FRAME_WIDTH, w, FRAME_WIDTH);
-        g.fillRect(w - FRAME_WIDTH, 0, FRAME_WIDTH, h);
-        g.fillStyle = LIGHT_COLORS[b.type];
-        g.beginPath();
-        g.moveTo(0, 0);
-        g.lineTo(0, h);
-        g.lineTo(FRAME_WIDTH, h - FRAME_WIDTH);
-        g.lineTo(FRAME_WIDTH, FRAME_WIDTH);
-        g.lineTo(w - FRAME_WIDTH, FRAME_WIDTH);
-        g.lineTo(w, 0);
-        g.fill();
+
+        // お邪魔ブロックの特別な描画
+        if(b.type == 6){
+            // 石のようなテクスチャ
+            const stoneGradient = g.createLinearGradient(0, 0, w, h);
+            stoneGradient.addColorStop(0, '#aaa');
+            stoneGradient.addColorStop(0.3, '#888');
+            stoneGradient.addColorStop(0.7, '#666');
+            stoneGradient.addColorStop(1, '#444');
+            g.fillStyle = stoneGradient;
+            g.fillRect(0, 0, w, h);
+
+            // ひび割れ模様
+            g.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+            g.lineWidth = 1.5;
+            g.beginPath();
+            for(let i = 0; i < 5; i++){
+                const startX = Math.random() * w;
+                const startY = Math.random() * h;
+                g.moveTo(startX, startY);
+                for(let j = 0; j < 2; j++){
+                    g.lineTo(startX + (Math.random() - 0.5) * w * 0.3, startY + (Math.random() - 0.5) * h * 0.3);
+                }
+            }
+            g.stroke();
+
+            // 重厚な影
+            g.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            g.fillRect(w - FRAME_WIDTH * 3, FRAME_WIDTH, FRAME_WIDTH * 2, h - FRAME_WIDTH * 2);
+            g.fillRect(FRAME_WIDTH, h - FRAME_WIDTH * 3, w - FRAME_WIDTH * 2, FRAME_WIDTH * 2);
+
+            // 鈍い光沢
+            const highlight = g.createRadialGradient(w * 0.3, h * 0.3, 0, w * 0.3, h * 0.3, w * 0.5);
+            highlight.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
+            highlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            g.fillStyle = highlight;
+            g.fillRect(0, 0, w, h);
+
+            // 外枠
+            g.strokeStyle = '#333';
+            g.lineWidth = FRAME_WIDTH;
+            g.strokeRect(FRAME_WIDTH / 2, FRAME_WIDTH / 2, w - FRAME_WIDTH, h - FRAME_WIDTH);
+        }else{
+            // 通常ブロックのグラデーション
+            const bgGradient = g.createLinearGradient(0, 0, w, h);
+            const baseColor = COLORS[b.type];
+            const lightColor = LIGHT_COLORS[b.type];
+            const darkColor = DARK_COLORS[b.type];
+
+            bgGradient.addColorStop(0, lightColor);
+            bgGradient.addColorStop(0.5, baseColor);
+            bgGradient.addColorStop(1, darkColor);
+            g.fillStyle = bgGradient;
+            g.fillRect(0, 0, w, h);
+
+            // 内側の影
+            g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            g.fillRect(w - FRAME_WIDTH * 2, FRAME_WIDTH, FRAME_WIDTH, h - FRAME_WIDTH * 2);
+            g.fillRect(FRAME_WIDTH, h - FRAME_WIDTH * 2, w - FRAME_WIDTH * 2, FRAME_WIDTH);
+
+            // ハイライト（光沢効果）
+            const highlight = g.createLinearGradient(0, 0, 0, h * 0.4);
+            highlight.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+            highlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            g.fillStyle = highlight;
+            g.fillRect(FRAME_WIDTH, FRAME_WIDTH, w - FRAME_WIDTH * 2, h * 0.3);
+
+            // 左上のハイライト
+            g.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            g.beginPath();
+            g.moveTo(0, 0);
+            g.lineTo(0, h * 0.3);
+            g.lineTo(FRAME_WIDTH * 2, h * 0.25);
+            g.lineTo(FRAME_WIDTH * 2, FRAME_WIDTH * 2);
+            g.lineTo(w * 0.3, FRAME_WIDTH * 2);
+            g.lineTo(w * 0.25, 0);
+            g.fill();
+
+            // 右下の影
+            g.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            g.beginPath();
+            g.moveTo(w, h);
+            g.lineTo(w, h * 0.7);
+            g.lineTo(w - FRAME_WIDTH * 2, h * 0.75);
+            g.lineTo(w - FRAME_WIDTH * 2, h - FRAME_WIDTH * 2);
+            g.lineTo(w * 0.7, h - FRAME_WIDTH * 2);
+            g.lineTo(w * 0.75, h);
+            g.fill();
+
+            // 外枠
+            g.strokeStyle = darkColor;
+            g.lineWidth = FRAME_WIDTH / 2;
+            g.strokeRect(FRAME_WIDTH / 4, FRAME_WIDTH / 4, w - FRAME_WIDTH / 2, h - FRAME_WIDTH / 2);
+        }
+
+        // マーク描画
         const text = RELIEF[b.type];
         const tm = g.measureText(text);
+
+        // マークの影
+        g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        g.translate(0.5 * w + 2, 0.5 * h + 2);
+        g.scale(scale, scale);
+        g.translate(-0.5 * tm.width, 0.5 * tm.actualBoundingBoxAscent + b.offsetReliefY());
+        g.fillText(text, 0, 0);
+        g.resetTransform();
+
+        // マーク本体
+        g.fillStyle = '#fff';
         g.translate(0.5 * w, 0.5 * h);
         g.scale(scale, scale);
         g.translate(-0.5 * tm.width, 0.5 * tm.actualBoundingBoxAscent + b.offsetReliefY());
@@ -1294,11 +1475,52 @@ const updateFunc = () => {
     }
     // カーソル
     g.translate((x+0.5)*BLOCK_SIZE, (y+0.5)*BLOCK_SIZE-raiseY);
+
+    // 滑らかな拡大縮小アニメーション
+    const cursorPulse = Math.sin(counter * 0.15) * 0.15 + 1;
+    const cursorGlow = Math.abs(Math.sin(counter * 0.1)) * 0.5 + 0.5;
+
+    // カーソルの影
+    g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    g.beginPath();
+    const shadowOffset = -(BLOCK_SIZE * 0.5 + 3);
+    g.scale(cursorPulse * 1.05, cursorPulse * 1.05);
+    for(let i = 0; i < 2; i++){
+        for(let j = 0; j < 4; j++){
+            g.rotate(0.5 * Math.PI);
+            g.rect(shadowOffset, shadowOffset, BLOCK_SIZE / 3, BLOCK_SIZE / 8);
+            g.rect(shadowOffset, shadowOffset, BLOCK_SIZE / 8, BLOCK_SIZE / 3);
+        }
+        g.translate(BLOCK_SIZE, 0);
+    }
+    g.fill();
+    g.resetTransform();
+
+    // カーソル本体
+    g.translate((x+0.5)*BLOCK_SIZE, (y+0.5)*BLOCK_SIZE-raiseY);
+    g.scale(cursorPulse, cursorPulse);
+
+    // 外側の光
+    g.strokeStyle = `rgba(255, 255, 100, ${cursorGlow * 0.6})`;
+    g.lineWidth = 4;
+    g.beginPath();
+    const offset = -(BLOCK_SIZE * 0.5);
+    for(let i = 0; i < 2; i++){
+        for(let j = 0; j < 4; j++){
+            g.rotate(0.5 * Math.PI);
+            g.rect(offset, offset, BLOCK_SIZE / 3, BLOCK_SIZE / 8);
+            g.rect(offset, offset, BLOCK_SIZE / 8, BLOCK_SIZE / 3);
+        }
+        g.translate(BLOCK_SIZE, 0);
+    }
+    g.stroke();
+
+    // カーソルメイン
+    g.translate(-BLOCK_SIZE, 0);
     g.fillStyle = 'white';
     g.beginPath();
-    const offset = -((Math.floor(counter / 30) & 1) + BLOCK_SIZE * 0.5);
-    for(let i = 0;i<2;++i){
-        for(let j = 0;j<4;++j){
+    for(let i = 0; i < 2; i++){
+        for(let j = 0; j < 4; j++){
             g.rotate(0.5 * Math.PI);
             g.rect(offset, offset, BLOCK_SIZE / 3, BLOCK_SIZE / 8);
             g.rect(offset, offset, BLOCK_SIZE / 8, BLOCK_SIZE / 3);
@@ -1306,6 +1528,21 @@ const updateFunc = () => {
         g.translate(BLOCK_SIZE, 0);
     }
     g.fill();
+
+    // 内側のハイライト
+    g.translate(-BLOCK_SIZE, 0);
+    g.fillStyle = `rgba(255, 255, 255, ${cursorGlow * 0.8})`;
+    g.beginPath();
+    for(let i = 0; i < 2; i++){
+        for(let j = 0; j < 4; j++){
+            g.rotate(0.5 * Math.PI);
+            g.rect(offset + 2, offset + 2, BLOCK_SIZE / 3 - 4, BLOCK_SIZE / 8 - 4);
+            g.rect(offset + 2, offset + 2, BLOCK_SIZE / 8 - 4, BLOCK_SIZE / 3 - 4);
+        }
+        g.translate(BLOCK_SIZE, 0);
+    }
+    g.fill();
+
     g.resetTransform();
 };
 
