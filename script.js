@@ -12,6 +12,59 @@ const CHECK_FLOOR = 9;  // 浮遊終了
 const UNZIP = 10;       // 解凍中
 // ゲーム制御
 const INVINCIBLE = false;   // 無敵モード
+// リプレイ機能
+class ReplayManager {
+    constructor(){
+        this.recording = false;
+        this.playing = false;
+        this.frames = [];
+        this.playbackFrame = 0;
+    }
+    startRecording(){
+        this.recording = true;
+        this.frames = [];
+        this.playbackFrame = 0;
+    }
+    stopRecording(){
+        this.recording = false;
+    }
+    recordFrame(input){
+        if(this.recording){
+            this.frames.push({...input});
+        }
+    }
+    startPlayback(){
+        this.playing = true;
+        this.playbackFrame = 0;
+    }
+    stopPlayback(){
+        this.playing = false;
+        this.playbackFrame = 0;
+    }
+    getPlaybackInput(){
+        if(!this.playing || this.playbackFrame >= this.frames.length){
+            return null;
+        }
+        return this.frames[this.playbackFrame++];
+    }
+    save(){
+        return JSON.stringify({
+            frames: this.frames,
+            version: 1
+        });
+    }
+    load(data){
+        try{
+            const replay = JSON.parse(data);
+            this.frames = replay.frames || [];
+            return true;
+        }catch(e){
+            console.error('Failed to load replay:', e);
+            return false;
+        }
+    }
+}
+const replayManager = new ReplayManager();
 // 寸法
 const WIDTH = 6;
 const HEIGHT = 12;
@@ -241,29 +294,60 @@ const r2 = 1 / Math.sqrt(2);
 function explosion(parent, x, y){
     let size = BLOCK_SIZE / 2;
 
-    // 中心の光フラッシュ
+    // 波紋エフェクト（複数層）
+    for(let i = 0; i < 3; i++){
+        const wave = document.createElement('div');
+        Object.assign(wave.style, {
+            position: 'absolute',
+            left: `${x - BLOCK_SIZE / 2}px`,
+            top: `${y - BLOCK_SIZE / 2}px`,
+            width: `${BLOCK_SIZE}px`,
+            height: `${BLOCK_SIZE}px`,
+            borderRadius: '50%',
+            border: '3px solid rgba(255, 200, 100, 0.8)',
+            pointerEvents: 'none',
+            opacity: '0.8',
+        });
+        parent.append(wave);
+
+        const waveEffect = new Effect();
+        waveEffect.properties = {
+            opacity: 0,
+            width: BLOCK_SIZE * (4 + i),
+            height: BLOCK_SIZE * (4 + i),
+        };
+        waveEffect.target = wave.style;
+        waveEffect.ease = easeOutCubic;
+        waveEffect.frame = 25 + i * 5;
+        waveEffect.finalyzer = () => wave.remove();
+        effects.push(waveEffect);
+        waveEffect.start();
+    }
+
+    // 中心の光フラッシュ（より強烈に）
     const flash = document.createElement('div');
     Object.assign(flash.style, {
         position: 'absolute',
-        left: `${x - BLOCK_SIZE}px`,
-        top: `${y - BLOCK_SIZE}px`,
-        width: `${BLOCK_SIZE * 2}px`,
-        height: `${BLOCK_SIZE * 2}px`,
+        left: `${x - BLOCK_SIZE * 1.5}px`,
+        top: `${y - BLOCK_SIZE * 1.5}px`,
+        width: `${BLOCK_SIZE * 3}px`,
+        height: `${BLOCK_SIZE * 3}px`,
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,220,100,0.6) 30%, rgba(255,100,50,0) 70%)',
+        background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,240,150,0.9) 20%, rgba(255,180,80,0.6) 40%, rgba(255,100,50,0) 70%)',
         opacity: '1',
         pointerEvents: 'none',
+        boxShadow: '0 0 40px rgba(255, 200, 100, 0.8)',
     });
     parent.append(flash);
     const flashEffect = new Effect();
     flashEffect.properties = {
         opacity: 0,
-        width: BLOCK_SIZE * 3,
-        height: BLOCK_SIZE * 3,
+        width: BLOCK_SIZE * 4,
+        height: BLOCK_SIZE * 4,
     };
     flashEffect.target = flash.style;
     flashEffect.ease = easeOutCubic;
-    flashEffect.frame = 20;
+    flashEffect.frame = 25;
     flashEffect.finalyzer = () => flash.remove();
     effects.push(flashEffect);
     flashEffect.start();
@@ -314,38 +398,41 @@ function explosion(parent, x, y){
     createParticle(r2, -r2);
     createParticle(-r2, -r2);
 
-    // ランダムな方向の追加パーティクル
-    for(let i = 0; i < 6; i++){
+    // ランダムな方向の追加パーティクル（増量）
+    for(let i = 0; i < 12; i++){
         const angle = Math.random() * Math.PI * 2;
         const dx = Math.cos(angle);
         const dy = Math.sin(angle);
-        createParticle(dx, dy, 0.6 + Math.random() * 0.6);
+        createParticle(dx, dy, 0.5 + Math.random() * 0.8);
     }
 
-    // 小さな破片パーティクル
-    for(let i = 0; i < 8; i++){
+    // 小さな破片パーティクル（増量＋カラフル）
+    for(let i = 0; i < 20; i++){
         const angle = Math.random() * Math.PI * 2;
         const dx = Math.cos(angle);
         const dy = Math.sin(angle);
         const particle = document.createElement('div');
+        const hue = Math.random() * 360;
+        const particleSize = 2 + Math.random() * 4;
         Object.assign(particle.style, {
             position: 'absolute',
             left: `${x}px`,
             top: `${y}px`,
-            width: '3px',
-            height: '3px',
+            width: `${particleSize}px`,
+            height: `${particleSize}px`,
             borderRadius: '50%',
-            backgroundColor: `hsl(${Math.random() * 60 + 20}, 100%, ${50 + Math.random() * 30}%)`,
+            backgroundColor: `hsl(${hue}, 100%, ${60 + Math.random() * 20}%)`,
             opacity: '1',
+            boxShadow: `0 0 ${particleSize * 2}px hsl(${hue}, 100%, 70%)`,
         });
         parent.append(particle);
 
-        const distance = 0.5 + Math.random() * 1;
-        const duration = 8 + Math.random() * 10;
+        const distance = 0.8 + Math.random() * 1.5;
+        const duration = 10 + Math.random() * 15;
         const effect = new Effect();
         effect.properties = {
             left: x + dx * BLOCK_SIZE * distance,
-            top: y + dy * BLOCK_SIZE * distance,
+            top: y + dy * BLOCK_SIZE * distance + Math.random() * 20 - 10,
             opacity: 0,
         };
         effect.target = particle.style;
@@ -354,6 +441,39 @@ function explosion(parent, x, y){
         effect.finalyzer = () => particle.remove();
         effects.push(effect);
         effect.start();
+    }
+
+    // 光の線（放射状）
+    for(let i = 0; i < 8; i++){
+        const angle = (Math.PI * 2 * i) / 8;
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+        const line = document.createElement('div');
+        Object.assign(line.style, {
+            position: 'absolute',
+            left: `${x}px`,
+            top: `${y}px`,
+            width: '2px',
+            height: `${BLOCK_SIZE * 1.5}px`,
+            background: 'linear-gradient(to bottom, rgba(255, 255, 200, 1), rgba(255, 200, 100, 0))',
+            transformOrigin: 'top',
+            transform: `rotate(${angle}rad)`,
+            opacity: '0.9',
+            pointerEvents: 'none',
+        });
+        parent.append(line);
+
+        const lineEffect = new Effect();
+        lineEffect.properties = {
+            opacity: 0,
+            height: BLOCK_SIZE * 2.5,
+        };
+        lineEffect.target = line.style;
+        lineEffect.ease = easeOutCubic;
+        lineEffect.frame = 15;
+        lineEffect.finalyzer = () => line.remove();
+        effects.push(lineEffect);
+        lineEffect.start();
     }
 }
 // コンボエフェクト
@@ -602,13 +722,36 @@ const player = function(){
                     haste = false;
                 };
                 player.update = function(){
-                    this.moveUp = upKey;
-                    this.moveDown = downKey;
-                    this.moveRight = rightKey;
-                    this.moveLeft = leftKey;
-                    this.swap = swapKey;
-                    this.haste = raiseKey;
-                    
+                    // リプレイ再生中は記録された入力を使用
+                    if(replayManager.playing){
+                        const replayInput = replayManager.getPlaybackInput();
+                        if(replayInput){
+                            this.moveUp = replayInput.moveUp;
+                            this.moveDown = replayInput.moveDown;
+                            this.moveRight = replayInput.moveRight;
+                            this.moveLeft = replayInput.moveLeft;
+                            this.swap = replayInput.swap;
+                            this.haste = replayInput.haste;
+                        }
+                    }else{
+                        this.moveUp = upKey;
+                        this.moveDown = downKey;
+                        this.moveRight = rightKey;
+                        this.moveLeft = leftKey;
+                        this.swap = swapKey;
+                        this.haste = raiseKey;
+
+                        // 入力を記録
+                        replayManager.recordFrame({
+                            moveUp: this.moveUp,
+                            moveDown: this.moveDown,
+                            moveRight: this.moveRight,
+                            moveLeft: this.moveLeft,
+                            swap: this.swap,
+                            haste: this.haste
+                        });
+                    }
+
                     upKey = false;
                     leftKey = false;
                     rightKey = false;
@@ -1341,99 +1484,117 @@ const updateFunc = () => {
     const FRAME_WIDTH = BLOCK_SIZE / 16;
     const drawBlock = (b, w, h) => {
         const scale = b.scale();
+        const BEVEL = FRAME_WIDTH * 3;
 
         // お邪魔ブロックの特別な描画
         if(b.type == 6){
-            // 石のようなテクスチャ
-            const stoneGradient = g.createLinearGradient(0, 0, w, h);
-            stoneGradient.addColorStop(0, '#aaa');
-            stoneGradient.addColorStop(0.3, '#888');
-            stoneGradient.addColorStop(0.7, '#666');
-            stoneGradient.addColorStop(1, '#444');
+            // 石のベースグラデーション（より3D的に）
+            const stoneGradient = g.createRadialGradient(w * 0.3, h * 0.3, 0, w * 0.5, h * 0.5, w * 0.8);
+            stoneGradient.addColorStop(0, '#bbb');
+            stoneGradient.addColorStop(0.3, '#999');
+            stoneGradient.addColorStop(0.6, '#777');
+            stoneGradient.addColorStop(1, '#555');
             g.fillStyle = stoneGradient;
             g.fillRect(0, 0, w, h);
 
-            // ひび割れ模様
-            g.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-            g.lineWidth = 1.5;
+            // ノイズテクスチャ
+            for(let i = 0; i < 30; i++){
+                const px = Math.random() * w;
+                const py = Math.random() * h;
+                g.fillStyle = `rgba(${Math.random() * 100}, ${Math.random() * 100}, ${Math.random() * 100}, 0.1)`;
+                g.fillRect(px, py, 2, 2);
+            }
+
+            // ひび割れ模様（より詳細に）
+            g.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+            g.lineWidth = 2;
             g.beginPath();
-            for(let i = 0; i < 5; i++){
+            for(let i = 0; i < 8; i++){
                 const startX = Math.random() * w;
                 const startY = Math.random() * h;
                 g.moveTo(startX, startY);
-                for(let j = 0; j < 2; j++){
+                for(let j = 0; j < 3; j++){
                     g.lineTo(startX + (Math.random() - 0.5) * w * 0.3, startY + (Math.random() - 0.5) * h * 0.3);
                 }
             }
             g.stroke();
 
-            // 重厚な影
-            g.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            g.fillRect(w - FRAME_WIDTH * 3, FRAME_WIDTH, FRAME_WIDTH * 2, h - FRAME_WIDTH * 2);
-            g.fillRect(FRAME_WIDTH, h - FRAME_WIDTH * 3, w - FRAME_WIDTH * 2, FRAME_WIDTH * 2);
+            // 3Dベベル効果
+            g.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            g.fillRect(0, 0, w, BEVEL);
+            g.fillRect(0, 0, BEVEL, h);
 
-            // 鈍い光沢
-            const highlight = g.createRadialGradient(w * 0.3, h * 0.3, 0, w * 0.3, h * 0.3, w * 0.5);
-            highlight.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
-            highlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            g.fillStyle = highlight;
-            g.fillRect(0, 0, w, h);
-
-            // 外枠
-            g.strokeStyle = '#333';
-            g.lineWidth = FRAME_WIDTH;
-            g.strokeRect(FRAME_WIDTH / 2, FRAME_WIDTH / 2, w - FRAME_WIDTH, h - FRAME_WIDTH);
+            g.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            g.fillRect(0, h - BEVEL, w, BEVEL);
+            g.fillRect(w - BEVEL, 0, BEVEL, h);
         }else{
-            // 通常ブロックのグラデーション
-            const bgGradient = g.createLinearGradient(0, 0, w, h);
+            // 3Dプラスチック/ガラスブロック
             const baseColor = COLORS[b.type];
             const lightColor = LIGHT_COLORS[b.type];
             const darkColor = DARK_COLORS[b.type];
 
-            bgGradient.addColorStop(0, lightColor);
-            bgGradient.addColorStop(0.5, baseColor);
-            bgGradient.addColorStop(1, darkColor);
-            g.fillStyle = bgGradient;
+            // ベースの放射状グラデーション
+            const radialGrad = g.createRadialGradient(w * 0.35, h * 0.35, w * 0.1, w * 0.5, h * 0.5, w * 0.8);
+            radialGrad.addColorStop(0, lightColor);
+            radialGrad.addColorStop(0.4, baseColor);
+            radialGrad.addColorStop(0.8, baseColor);
+            radialGrad.addColorStop(1, darkColor);
+            g.fillStyle = radialGrad;
             g.fillRect(0, 0, w, h);
 
-            // 内側の影
-            g.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            g.fillRect(w - FRAME_WIDTH * 2, FRAME_WIDTH, FRAME_WIDTH, h - FRAME_WIDTH * 2);
-            g.fillRect(FRAME_WIDTH, h - FRAME_WIDTH * 2, w - FRAME_WIDTH * 2, FRAME_WIDTH);
+            // 上部の強い光沢（ガラス風）
+            const gloss = g.createLinearGradient(0, 0, 0, h * 0.5);
+            gloss.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
+            gloss.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)');
+            gloss.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            g.fillStyle = gloss;
+            g.fillRect(BEVEL, BEVEL, w - BEVEL * 2, h * 0.4);
 
-            // ハイライト（光沢効果）
-            const highlight = g.createLinearGradient(0, 0, 0, h * 0.4);
-            highlight.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
-            highlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            g.fillStyle = highlight;
-            g.fillRect(FRAME_WIDTH, FRAME_WIDTH, w - FRAME_WIDTH * 2, h * 0.3);
+            // ベベルエッジ（立体感）
+            // 上辺
+            const topBevel = g.createLinearGradient(0, 0, 0, BEVEL);
+            topBevel.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+            topBevel.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            g.fillStyle = topBevel;
+            g.fillRect(0, 0, w, BEVEL);
 
-            // 左上のハイライト
-            g.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            g.beginPath();
-            g.moveTo(0, 0);
-            g.lineTo(0, h * 0.3);
-            g.lineTo(FRAME_WIDTH * 2, h * 0.25);
-            g.lineTo(FRAME_WIDTH * 2, FRAME_WIDTH * 2);
-            g.lineTo(w * 0.3, FRAME_WIDTH * 2);
-            g.lineTo(w * 0.25, 0);
-            g.fill();
+            // 左辺
+            const leftBevel = g.createLinearGradient(0, 0, BEVEL, 0);
+            leftBevel.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+            leftBevel.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            g.fillStyle = leftBevel;
+            g.fillRect(0, 0, BEVEL, h);
 
-            // 右下の影
-            g.fillStyle = 'rgba(0, 0, 0, 0.4)';
-            g.beginPath();
-            g.moveTo(w, h);
-            g.lineTo(w, h * 0.7);
-            g.lineTo(w - FRAME_WIDTH * 2, h * 0.75);
-            g.lineTo(w - FRAME_WIDTH * 2, h - FRAME_WIDTH * 2);
-            g.lineTo(w * 0.7, h - FRAME_WIDTH * 2);
-            g.lineTo(w * 0.75, h);
-            g.fill();
+            // 下辺
+            const bottomBevel = g.createLinearGradient(0, h - BEVEL, 0, h);
+            bottomBevel.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            bottomBevel.addColorStop(1, 'rgba(0, 0, 0, 0.6)');
+            g.fillStyle = bottomBevel;
+            g.fillRect(0, h - BEVEL, w, BEVEL);
 
-            // 外枠
+            // 右辺
+            const rightBevel = g.createLinearGradient(w - BEVEL, 0, w, 0);
+            rightBevel.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            rightBevel.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+            g.fillStyle = rightBevel;
+            g.fillRect(w - BEVEL, 0, BEVEL, h);
+
+            // 内側の柔らかい影
+            g.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            g.fillRect(w - BEVEL * 1.5, BEVEL, BEVEL * 0.5, h - BEVEL * 2);
+            g.fillRect(BEVEL, h - BEVEL * 1.5, w - BEVEL * 2, BEVEL * 0.5);
+
+            // 反射光（右上）
+            const reflection = g.createRadialGradient(w * 0.75, h * 0.25, 0, w * 0.75, h * 0.25, w * 0.3);
+            reflection.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+            reflection.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            g.fillStyle = reflection;
+            g.fillRect(w * 0.5, 0, w * 0.5, h * 0.5);
+
+            // 外枠（微細なアウトライン）
             g.strokeStyle = darkColor;
-            g.lineWidth = FRAME_WIDTH / 2;
-            g.strokeRect(FRAME_WIDTH / 4, FRAME_WIDTH / 4, w - FRAME_WIDTH / 2, h - FRAME_WIDTH / 2);
+            g.lineWidth = 1;
+            g.strokeRect(0.5, 0.5, w - 1, h - 1);
         }
 
         // マーク描画
@@ -1683,3 +1844,88 @@ class GameController extends EventTarget {
 
     document.body.onresize = controller.doLayout.bind(controller);
     controller.doLayout();
+
+// 背景パーティクル生成
+(function(){
+    const bgParticles = document.getElementById('bg-particles');
+    const particleCount = 25;
+
+    for(let i = 0; i < particleCount; i++){
+        const particle = document.createElement('div');
+        particle.classList.add('bg-particle');
+
+        const size = 3 + Math.random() * 8;
+        const x = Math.random() * 100;
+        const y = Math.random() * 100;
+        const delay = Math.random() * 20;
+        const duration = 15 + Math.random() * 15;
+
+        Object.assign(particle.style, {
+            width: `${size}px`,
+            height: `${size}px`,
+            left: `${x}%`,
+            top: `${y}%`,
+            animationDelay: `${delay}s`,
+            animationDuration: `${duration}s`,
+        });
+
+        bgParticles.append(particle);
+    }
+})();
+
+// リプレイコントロールのイベントハンドラー
+(function(){
+    const recordBtn = document.getElementById('replay-record');
+    const stopBtn = document.getElementById('replay-stop');
+    const playBtn = document.getElementById('replay-play');
+    const saveBtn = document.getElementById('replay-save');
+    const loadBtn = document.getElementById('replay-load');
+    const fileInput = document.getElementById('replay-file');
+
+    recordBtn.addEventListener('click', () => {
+        replayManager.startRecording();
+        alert('リプレイ記録を開始しました');
+    });
+
+    stopBtn.addEventListener('click', () => {
+        replayManager.stopRecording();
+        replayManager.stopPlayback();
+        alert('リプレイ記録を停止しました');
+    });
+
+    playBtn.addEventListener('click', () => {
+        replayManager.startPlayback();
+        alert('リプレイを再生します');
+    });
+
+    saveBtn.addEventListener('click', () => {
+        const data = replayManager.save();
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `replay_${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        alert('リプレイを保存しました');
+    });
+
+    loadBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if(file){
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if(replayManager.load(event.target.result)){
+                    alert('リプレイを読み込みました');
+                }else{
+                    alert('リプレイの読み込みに失敗しました');
+                }
+            };
+            reader.readAsText(file);
+        }
+    });
+})();
