@@ -1497,24 +1497,28 @@ const updateFunc = () => {
             g.fillStyle = stoneGradient;
             g.fillRect(0, 0, w, h);
 
-            // ノイズテクスチャ
-            for(let i = 0; i < 30; i++){
-                const px = Math.random() * w;
-                const py = Math.random() * h;
-                g.fillStyle = `rgba(${Math.random() * 100}, ${Math.random() * 100}, ${Math.random() * 100}, 0.1)`;
+            // 固定パターンのノイズテクスチャ（ちらつき防止）
+            const seed = (b.x || 0) + (b.y || 0) * 7; // ブロック位置ベースのシード
+            for(let i = 0; i < 20; i++){
+                const px = ((seed * 17 + i * 13) % 100) / 100 * w;
+                const py = ((seed * 23 + i * 19) % 100) / 100 * h;
+                const shade = ((seed + i * 7) % 50) + 50;
+                g.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.15)`;
                 g.fillRect(px, py, 2, 2);
             }
 
-            // ひび割れ模様（より詳細に）
-            g.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-            g.lineWidth = 2;
+            // 固定パターンのひび割れ（ちらつき防止）
+            g.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+            g.lineWidth = 1.5;
             g.beginPath();
-            for(let i = 0; i < 8; i++){
-                const startX = Math.random() * w;
-                const startY = Math.random() * h;
+            for(let i = 0; i < 5; i++){
+                const startX = ((seed * 31 + i * 41) % 100) / 100 * w;
+                const startY = ((seed * 37 + i * 43) % 100) / 100 * h;
                 g.moveTo(startX, startY);
-                for(let j = 0; j < 3; j++){
-                    g.lineTo(startX + (Math.random() - 0.5) * w * 0.3, startY + (Math.random() - 0.5) * h * 0.3);
+                for(let j = 0; j < 2; j++){
+                    const dx = (((seed + i + j) * 17) % 100 - 50) / 100 * w * 0.2;
+                    const dy = (((seed + i + j) * 19) % 100 - 50) / 100 * h * 0.2;
+                    g.lineTo(startX + dx, startY + dy);
                 }
             }
             g.stroke();
@@ -1615,6 +1619,7 @@ const updateFunc = () => {
         g.scale(scale, scale);
         g.translate(-0.5 * tm.width, 0.5 * tm.actualBoundingBoxAscent + b.offsetReliefY());
         g.fillText(text, 0, 0);
+        g.resetTransform();
     };
     for(let x = 0;x < WIDTH;++x){
         for(let y = -HEIGHT;y < HEIGHT;++y){
@@ -1675,9 +1680,11 @@ const updateFunc = () => {
         g.translate(BLOCK_SIZE, 0);
     }
     g.stroke();
+    g.resetTransform();
 
     // カーソルメイン
-    g.translate(-BLOCK_SIZE, 0);
+    g.translate((x+0.5)*BLOCK_SIZE, (y+0.5)*BLOCK_SIZE-raiseY);
+    g.scale(cursorPulse, cursorPulse);
     g.fillStyle = 'white';
     g.beginPath();
     for(let i = 0; i < 2; i++){
@@ -1689,9 +1696,11 @@ const updateFunc = () => {
         g.translate(BLOCK_SIZE, 0);
     }
     g.fill();
+    g.resetTransform();
 
     // 内側のハイライト
-    g.translate(-BLOCK_SIZE, 0);
+    g.translate((x+0.5)*BLOCK_SIZE, (y+0.5)*BLOCK_SIZE-raiseY);
+    g.scale(cursorPulse, cursorPulse);
     g.fillStyle = `rgba(255, 255, 255, ${cursorGlow * 0.8})`;
     g.beginPath();
     for(let i = 0; i < 2; i++){
@@ -1703,7 +1712,6 @@ const updateFunc = () => {
         g.translate(BLOCK_SIZE, 0);
     }
     g.fill();
-
     g.resetTransform();
 };
 
